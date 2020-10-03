@@ -1,0 +1,15 @@
+#! /usr/bin/awk -f
+
+# Used with the csv version of the WI covid-19 data,
+# this shows the % positive of those tested.
+
+BEGIN	{ 
+		FS = "," 
+		}
+
+	{ 
+		quot = $4 / $5
+		pct = quot * 100
+		print $1 "\t" pct
+	}
+

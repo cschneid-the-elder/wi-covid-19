@@ -1,0 +1,32 @@
+#!/bin/bash
+
+odoc=$(date +%Y-%m-%d)".json"
+ocsv=$(date +%Y-%m-%d)".csv"
+prfx2=~/covid-19b/data/
+prfx3=~/covid-19b/src/
+
+# Retrieve the data.  Currently wget sending a REST
+# request.
+${prfx3}get1DataFile ${prfx2} ${odoc} ~/covid-19b/
+
+# Reformat the data.  What comes back is JSON and
+# I'd prefer CSV as it's what the R code wants.
+${prfx3}reformat1DataFile ${prfx2} ${odoc} ${ocsv}
+
+myRC=$?
+if [ ${myRC} -gt 0 ]
+then
+	exit ${myRC}
+fi
+
+# Make the graphs.  Left over from the previous 
+# incarnation of this process.
+${prfx3}makeGraphs.R
+
+# Print the % positive results of those tested.  If sufficient
+# people are being tested then this should be 5% or less.
+tail --lines=1 ${prfx2}tot.csv | ${prfx3}pctTested
+
+# Print the raw numbers.
+tail ${prfx2}tot.csv
+

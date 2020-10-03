@@ -1,0 +1,118 @@
+#!/bin/bash
+
+if [ $1"." == "." ]
+then
+	echo "$0 needs a directory for data"
+	exit 4
+fi
+
+if [ $2"." == "." ]
+then
+	echo "$0 needs a json data file name"
+	exit 4
+fi
+
+if [ $3"." == "." ]
+then
+	echo "$0 needs a csv data file name"
+	exit 4
+fi
+
+odoc=$1$2
+ocsv=$1$3
+otot=$1tot.csv
+
+prfx1=/tmp/$(date +%Y%m%d%H%M%S).$$.covid-19-
+
+# Temporary files, we delete these later.
+tmp01=${prfx1}"DATE"
+tmp02=${prfx1}"DEATHS"
+tmp03=${prfx1}"DTH_NEW"
+tmp04=${prfx1}"POS_NEW"
+tmp05=${prfx1}"TEST_NEW"
+
+# The retrieved data file is in JSON format, jq is used to extract
+# fields we want into separate files.
+jq '.features | .[].attributes | .DATE | tostring | .[0:10] | tonumber | strftime("%Y-%m-%d")' < ${odoc} | sed 's/"//g' > ${tmp01}
+jq '.features | .[].attributes | .DEATHS' < ${odoc} > ${tmp02}
+jq '.features | .[].attributes | .DTH_NEW' < ${odoc} > ${tmp03}
+jq '.features | .[].attributes | .POS_NEW' < ${odoc} > ${tmp04}
+jq '.features | .[].attributes | .TEST_NEW' < ${odoc} > ${tmp05}
+
+lines01=$(wc -l < ${tmp01})
+lines02=$(wc -l < ${tmp02})
+lines03=$(wc -l < ${tmp03})
+lines04=$(wc -l < ${tmp04})
+lines05=$(wc -l < ${tmp05})
+
+if [ ${lines01} -ne ${lines02} ]
+then
+	echo "# lines in ${tmp01} (${lines01}) !="
+	echo "# lines in ${tmp02} (${lines02})"
+	echo "something is off and I don't know what"
+	exit 8
+fi
+
+if [ ${lines01} -ne ${lines03} ]
+then
+	echo "# lines in ${tmp01} (${lines01}) !="
+	echo "# lines in ${tmp03} (${lines03})"
+	echo "something is off and I don't know what"
+	exit 8
+fi
+
+if [ ${lines01} -ne ${lines04} ]
+then
+	echo "# lines in ${tmp01} (${lines01}) !="
+	echo "# lines in ${tmp04} (${lines04})"
+	echo "something is off and I don't know what"
+	exit 8
+fi
+
+if [ ${lines01} -ne ${lines05} ]
+then
+	echo "# lines in ${tmp01} (${lines01}) !="
+	echo "# lines in ${tmp05} (${lines05})"
+	echo "something is off and I don't know what"
+	exit 8
+fi
+
+# Stitch the separate files (each containing one field of interest)
+# into one file.  Get rid of records with null values (which should
+# be just the first one).  Convert the tabs that paste uses as field
+# delimiters into commas.
+paste ${tmp01} ${tmp02} ${tmp03} ${tmp04} ${tmp05} | grep --invert-match null | sed 's/\t/,/g' > ${ocsv}
+
+if [ -s ${ocsv} ]
+then
+	rc=0
+else
+	echo "$0 resulted in empty file"
+	rc=4
+fi
+
+fsOCSV=$(stat -c%s ${ocsv})
+fsTot=$(stat -c%s ${otot})
+
+if [ ${fsOCSV} -eq ${fsTot} ]
+then
+	echo "size of ${ocsv} (${fsOCSV}) =="
+	echo "size of ${otot} (${fsTot})"
+	echo "either today's data isn't available yet or"
+	echo "you ran this script twice in one day"
+	exit 2
+fi
+
+# Make a copy for posterity and so makeGraphs.R doesn't need
+# to know the file name.
+cp ${ocsv} ${otot}
+
+# Get rid of temp files.
+rm ${tmp01}
+rm ${tmp02}
+rm ${tmp03}
+rm ${tmp04}
+rm ${tmp05}
+
+exit ${rc}
+
